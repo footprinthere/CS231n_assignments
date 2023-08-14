@@ -113,8 +113,10 @@ class LinearClassifier(object):
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        assert X.shape[1] == self.W.shape[0], f"num_classes {X.shape[1]} != {self.W.shape[0]}"
-        logits = np.matmul(X, self.W)   # (N, C)
+        assert (
+            X.shape[1] == self.W.shape[0]
+        ), f"num_classes {X.shape[1]} != {self.W.shape[0]}"
+        logits = np.matmul(X, self.W)  # (N, C)
         y_pred = np.argmax(logits, axis=-1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****

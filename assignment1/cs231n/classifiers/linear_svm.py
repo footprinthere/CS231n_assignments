@@ -29,7 +29,7 @@ def svm_loss_naive(W, X, y, reg: float):
     loss = 0.0
 
     for i in range(num_train):
-        scores = np.matmul(X[i], W)     # (C,)
+        scores = np.matmul(X[i], W)  # (C,)
         correct_class_score = scores[y[i]]
 
         for j in range(num_classes):
@@ -41,7 +41,6 @@ def svm_loss_naive(W, X, y, reg: float):
 
                 dW[:, j] += X[i]
                 dW[:, y[i]] -= X[i]
-                
 
     # Right now the loss is a sum over all training examples, but we want it
     # to be an average instead so we divide by num_train.
@@ -91,11 +90,11 @@ def svm_loss_vectorized(W, X, y, reg: float):
     num_train = X.shape[0]
     num_classes = W.shape[1]
 
-    scores = np.matmul(X, W)    # (N, C)
-    correct_scores = scores[np.arange(num_train), y]       # (N,)
-    margins = np.maximum(0, scores - correct_scores.reshape(-1, 1) + 1)     # (N, C)
+    scores = np.matmul(X, W)  # (N, C)
+    correct_scores = scores[np.arange(num_train), y]  # (N,)
+    margins = np.maximum(0, scores - correct_scores.reshape(-1, 1) + 1)  # (N, C)
     assert margins.shape == (num_train, num_classes), f"{margins.shape}"
-    
+
     margins[np.arange(num_train), y] = 0
     loss = margins.sum() / num_train
 
@@ -115,9 +114,9 @@ def svm_loss_vectorized(W, X, y, reg: float):
     coeffs = np.zeros_like(margins)
     coeffs[margins > 0] = 1
     coeffs[np.arange(num_train), y] = 0
-    nonzero_counts = (coeffs > 0).sum(axis=-1)        # (N,)
+    nonzero_counts = (coeffs > 0).sum(axis=-1)  # (N,)
     coeffs[np.arange(num_train), y] = -1 * nonzero_counts
-    
+
     dW = np.matmul(X.T, coeffs)
     dW /= num_train
     dW += 2 * reg * W
