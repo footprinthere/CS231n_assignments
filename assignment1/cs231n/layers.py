@@ -27,7 +27,10 @@ def affine_forward(x, w, b):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x_flat = x.reshape(x.shape[0], -1)  # (N, D)
+    assert x_flat.shape[1] == w.shape[0], f"{x_flat.shape[1]} != {w.shape[0]}"
+    score = np.matmul(x_flat, w)
+    out = score + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -60,7 +63,10 @@ def affine_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x_flat = x.reshape(x.shape[0], -1)  # (N, D)
+    dx = np.matmul(dout, w.T).reshape(x.shape)
+    dw = np.matmul(x_flat.T, dout)
+    db = np.sum(dout, axis=0)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -86,7 +92,7 @@ def relu_forward(x):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = np.maximum(np.zeros_like(x), x)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -113,7 +119,8 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    local = (x > 0).astype(int)
+    dx = dout * local
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -772,7 +779,18 @@ def svm_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = x.shape[0]
+    correct_scores = x[np.arange(num_train), y]  # (N,)
+    margins = np.maximum(0, x - correct_scores.reshape(-1, 1) + 1)  # (N, C)
+    margins[np.arange(num_train), y] = 0
+    loss = margins.sum() / num_train
+
+    dx = np.zeros_like(x)
+    dx[margins > 0] = 1
+    dx[np.arange(num_train), y] = 0
+    nonzero_counts = (dx > 0).sum(axis=-1)  # (N,)
+    dx[np.arange(num_train), y] = -1 * nonzero_counts
+    dx /= num_train
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -802,7 +820,16 @@ def softmax_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = x.shape[0]
+
+    exp = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    probs = exp / np.sum(exp, axis=-1, keepdims=True)
+
+    loss = -1 * np.sum(np.log(probs[np.arange(num_train), y])) / num_train
+
+    dx = probs.copy()
+    dx[np.arange(num_train), y] -= 1
+    dx /= num_train
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

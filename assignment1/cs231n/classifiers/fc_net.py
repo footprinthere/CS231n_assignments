@@ -55,7 +55,14 @@ class TwoLayerNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        self.params["W1"] = np.random.normal(
+            loc=0, scale=weight_scale, size=(input_dim, hidden_dim)
+        )
+        self.params["W2"] = np.random.normal(
+            loc=0, scale=weight_scale, size=(hidden_dim, num_classes)
+        )
+        self.params["b1"] = np.zeros((hidden_dim,))
+        self.params["b2"] = np.zeros((num_classes,))
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -88,7 +95,11 @@ class TwoLayerNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        W1, W2 = self.params["W1"], self.params["W2"]  # (D, H), (H, C)
+        b1, b2 = self.params["b1"], self.params["b2"]  # (H,), (C,)
+
+        hidden, cache_hidden = affine_relu_forward(X, W1, b1)  # (N, H)
+        scores, cache_out = affine_forward(hidden, W2, b2)  # (N, C)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -112,7 +123,21 @@ class TwoLayerNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        loss, dout = softmax_loss(scores, y)
+        dx2, dw2, db2 = affine_backward(dout, cache_out)
+        _, dw1, db1 = affine_relu_backward(dx2, cache_hidden)
+
+        # L2 regularization
+        loss += 0.5 * self.reg * (np.sum(W1**2) + np.sum(W2**2))
+        dw1 += self.reg * W1
+        dw2 += self.reg * W2
+
+        grads = {
+            "W1": dw1,
+            "W2": dw2,
+            "b1": db1,
+            "b2": db2,
+        }
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

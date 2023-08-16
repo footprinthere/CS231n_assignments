@@ -8,6 +8,7 @@ import os
 import pickle as pickle
 
 import numpy as np
+from tqdm import tqdm
 
 from cs231n import optim
 
@@ -259,7 +260,13 @@ class Solver(object):
         iterations_per_epoch = max(num_train // self.batch_size, 1)
         num_iterations = self.num_epochs * iterations_per_epoch
 
-        for t in range(num_iterations):
+        # Show tqdm bar if verbose is set to False
+        if not self.verbose:
+            step_iter = tqdm(range(num_iterations))
+        else:
+            step_iter = range(num_iterations)
+
+        for t in step_iter:
             self._step()
 
             # Maybe print training loss
