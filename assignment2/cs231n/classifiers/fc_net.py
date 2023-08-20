@@ -1,5 +1,6 @@
 from builtins import range
 from builtins import object
+from typing import Optional
 import numpy as np
 
 from ..layers import *
@@ -24,13 +25,13 @@ class FullyConnectedNet(object):
 
     def __init__(
         self,
-        hidden_dims,
-        input_dim=3 * 32 * 32,
-        num_classes=10,
-        dropout_keep_ratio=1,
-        normalization=None,
-        reg=0.0,
-        weight_scale=1e-2,
+        hidden_dims: list[int],
+        input_dim: int = 3 * 32 * 32,
+        num_classes: int = 10,
+        dropout_keep_ratio: float = 1,
+        normalization: Optional[str] = None,
+        reg: float = 0.0,
+        weight_scale: float = 1e-2,
         dtype=np.float32,
         seed=None,
     ):
@@ -74,7 +75,26 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        def random_init(*size):
+            return np.random.normal(loc=0, scale=weight_scale, size=tuple(size))
+
+        # First layer
+        assert len(hidden_dims) > 0, "No hidden dim specified"
+        self.params["W1"] = random_init(input_dim, hidden_dims[0])
+        self.params["b1"] = np.zeros((hidden_dims[0],))
+
+        # Hidden layers
+        idx = 1
+        while idx < len(hidden_dims):
+            self.params[f"W{idx+1}"] = random_init(
+                hidden_dims[idx - 1], hidden_dims[idx]
+            )
+            self.params[f"b{idx+1}"] = np.zeros((hidden_dims[idx],))
+            idx += 1
+
+        # Last layer
+        self.params[f"W{idx+1}"] = random_init(hidden_dims[idx - 1], num_classes)
+        self.params[f"b{idx+1}"] = np.zeros((num_classes,))
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -107,7 +127,7 @@ class FullyConnectedNet(object):
 
     def loss(self, X, y=None):
         """Compute loss and gradient for the fully connected net.
-        
+
         Inputs:
         - X: Array of input data of shape (N, d_1, ..., d_k)
         - y: Array of labels, of shape (N,). y[i] gives the label for X[i].
@@ -148,7 +168,22 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # FIXME: BatchNorm not implemented yet
+
+        caches: dict[int, tuple] = {}
+        hidden = X
+
+        for layer_idx in range(1, self.num_layers):
+            W = self.params[f"W{layer_idx}"]
+            b = self.params[f"b{layer_idx}"]
+            hidden, caches[layer_idx] = affine_relu_forward(hidden, W, b)
+
+        # Last layer
+        W = self.params[f"W{self.num_layers}"]
+        b = self.params[f"b{self.num_layers}"]
+        scores, caches[self.num_layers] = affine_forward(hidden, W, b)
+
+        assert len(caches) == self.num_layers, f"{len(caches)} != {self.num_layers}"
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -175,7 +210,27 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # FIXME: BatchNorm not implemented yet
+
+        # Last layer
+        loss, dout = softmax_loss(scores, y)
+        dx, dW, db = affine_backward(dout, caches[self.num_layers])
+        grads[f"W{self.num_layers}"] = dW
+        grads[f"b{self.num_layers}"] = db
+
+        # Hidden layers
+        for layer_idx in reversed(range(1, self.num_layers)):
+            dx, dW, db = affine_relu_backward(dx, caches[layer_idx])
+            grads[f"W{layer_idx}"] = dW
+            grads[f"b{layer_idx}"] = db
+
+        # L2 regularization
+        for key in self.params.keys():
+            if not key.startswith("W"):
+                continue  # Regularization not applied to biases
+            W = self.params[key]
+            loss += 0.5 * self.reg * np.sum(W**2)
+            grads[key] += self.reg * W
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
