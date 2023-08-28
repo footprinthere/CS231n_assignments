@@ -75,26 +75,46 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        def random_init(*size):
+        def _random_init(*size):
             return np.random.normal(loc=0, scale=weight_scale, size=tuple(size))
+
+        def _affine_init(input_dim: int, output_dim: int):
+            w = _random_init(input_dim, output_dim)
+            b = np.zeros((output_dim,))
+            return w, b
+
+        def _batchnorm_init(dim: int):
+            gamma = np.ones((dim,))
+            beta = np.zeros((dim,))
+            return gamma, beta
 
         # First layer
         assert len(hidden_dims) > 0, "No hidden dim specified"
-        self.params["W1"] = random_init(input_dim, hidden_dims[0])
-        self.params["b1"] = np.zeros((hidden_dims[0],))
+        self.params["W1"], self.params["b1"] = _affine_init(input_dim, hidden_dims[0])
+        if self.normalization == "batchnorm":
+            self.params["gamma1"], self.params["beta1"] = _batchnorm_init(
+                hidden_dims[0]
+            )
 
         # Hidden layers
         idx = 1
         while idx < len(hidden_dims):
-            self.params[f"W{idx+1}"] = random_init(
+            self.params[f"W{idx+1}"], self.params[f"b{idx+1}"] = _affine_init(
                 hidden_dims[idx - 1], hidden_dims[idx]
             )
-            self.params[f"b{idx+1}"] = np.zeros((hidden_dims[idx],))
+
+            if self.normalization == "batchnorm":
+                (
+                    self.params[f"gamma{idx+1}"],
+                    self.params[f"beta{idx+1}"],
+                ) = _batchnorm_init(hidden_dims[idx])
+
             idx += 1
 
         # Last layer
-        self.params[f"W{idx+1}"] = random_init(hidden_dims[idx - 1], num_classes)
-        self.params[f"b{idx+1}"] = np.zeros((num_classes,))
+        self.params[f"W{idx+1}"], self.params[f"b{idx+1}"] = _affine_init(
+            hidden_dims[idx - 1], num_classes
+        )
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -168,15 +188,22 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        # FIXME: BatchNorm not implemented yet
-
         caches: dict[int, tuple] = {}
         hidden = X
 
         for layer_idx in range(1, self.num_layers):
             W = self.params[f"W{layer_idx}"]
             b = self.params[f"b{layer_idx}"]
-            hidden, caches[layer_idx] = affine_relu_forward(hidden, W, b)
+
+            if self.normalization == "batchnorm":
+                gamma = self.params[f"gamma{layer_idx}"]
+                beta = self.params[f"beta{layer_idx}"]
+                hidden, caches[layer_idx] = affine_batchnorm_relu_forward(
+                    hidden, W, b, gamma, beta, self.bn_params[layer_idx - 1]
+                )
+                # TODO: bn_params 내용을 다음 것에 반영해줘야 하는 것 아닌가?
+            else:
+                hidden, caches[layer_idx] = affine_relu_forward(hidden, W, b)
 
         # Last layer
         W = self.params[f"W{self.num_layers}"]
@@ -210,8 +237,6 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        # FIXME: BatchNorm not implemented yet
-
         # Last layer
         loss, dout = softmax_loss(scores, y)
         dx, dW, db = affine_backward(dout, caches[self.num_layers])
@@ -220,7 +245,15 @@ class FullyConnectedNet(object):
 
         # Hidden layers
         for layer_idx in reversed(range(1, self.num_layers)):
-            dx, dW, db = affine_relu_backward(dx, caches[layer_idx])
+            if self.normalization == "batchnorm":
+                dx, dW, db, dgamma, dbeta = affine_batchnorm_relu_backward(
+                    dx, caches[layer_idx]
+                )
+                grads[f"gamma{layer_idx}"] = dgamma
+                grads[f"beta{layer_idx}"] = dbeta
+            else:
+                dx, dW, db = affine_relu_backward(dx, caches[layer_idx])
+
             grads[f"W{layer_idx}"] = dW
             grads[f"b{layer_idx}"] = db
 

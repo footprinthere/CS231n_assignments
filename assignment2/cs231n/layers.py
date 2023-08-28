@@ -232,7 +232,14 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        mean = np.average(x, axis=0)  # (D,)
+        var = np.var(x, axis=0)
+        out = gamma * (x - mean) / np.sqrt(var + eps) + beta
+
+        running_mean = momentum * running_mean + (1 - momentum) * mean
+        running_var = momentum * running_var + (1 - momentum) * var
+
+        cache = (x, mean, var, eps, gamma)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -247,7 +254,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        out = gamma * (x - running_mean) / np.sqrt(running_var + eps) + beta
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -263,7 +270,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     return out, cache
 
 
-def batchnorm_backward(dout, cache):
+def batchnorm_backward(dout, cache: tuple):
     """Backward pass for batch normalization.
 
     For this implementation, you should write out a computation graph for
@@ -288,7 +295,19 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # Extract cached values
+    x, mean, var, eps, gamma = cache
+
+    s = np.sqrt(var + eps)  # (D,)
+
+    dgamma = np.sum(dout * (x - mean) / s, axis=0)  # (D,)
+    dbeta = np.sum(dout, axis=0)  # (D,)
+
+    dmean = np.sum(dout * -gamma / s, axis=0)
+    dvar = np.sum(dout * (x - mean), axis=0) * -0.5 * gamma * (var + eps) ** -1.5
+
+    N = dout.shape[0]
+    dx = dmean / N + dvar * 2 * (x - mean) / N + 1 / s * dout * gamma
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -322,7 +341,17 @@ def batchnorm_backward_alt(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # Extract cached values
+    x, mean, var, eps, gamma = cache
+
+    s = np.sqrt(var + eps)
+    z = (x - mean) / s
+    dz = dout * gamma
+    N = dout.shape[0]
+
+    dgamma = np.sum(dout * z, axis=0)
+    dbeta = np.sum(dout, axis=0)
+    dx = 1 / (N * s) * (N * dz - np.sum(dz, axis=0) - z * np.sum(dz * z, axis=0))
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -367,7 +396,11 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    mean = np.average(x, axis=1, keepdims=True)  # (N, 1)
+    var = np.var(x, axis=1, keepdims=True)
+    out = gamma * (x - mean) / np.sqrt(var + eps) + beta
+
+    cache = (x, mean, var, eps, gamma)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -401,7 +434,27 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # Extract cached values
+    x, mean, var, eps, gamma = cache
+    mean = mean.reshape(-1, 1)
+    assert x.shape[0] == mean.shape[0], f"{x.shape[0]} != {mean.shape[0]}"
+
+    s = np.sqrt(var + eps)
+    z = (x - mean) / s
+    dz = dout * gamma
+    D = dout.shape[1]
+
+    dgamma = np.sum(dout * z, axis=0)
+    dbeta = np.sum(dout, axis=0)
+    dx = (
+        1
+        / (D * s)
+        * (
+            D * dz
+            - np.sum(dz, axis=1, keepdims=True)
+            - z * np.sum(dz * z, axis=1, keepdims=True)
+        )
+    )
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
