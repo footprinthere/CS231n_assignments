@@ -6,6 +6,8 @@ import numpy as np
 from ..layers import *
 from ..layer_utils import *
 
+from typing import Any
+
 
 class FullyConnectedNet(object):
     """Class for a multi-layer fully connected neural network.
@@ -189,6 +191,7 @@ class FullyConnectedNet(object):
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
         caches: dict[int, tuple] = {}
+        dropout_masks: dict[int, Any] = {}
         hidden = X
 
         for layer_idx in range(1, self.num_layers):
@@ -204,6 +207,10 @@ class FullyConnectedNet(object):
                 # TODO: bn_params 내용을 다음 것에 반영해줘야 하는 것 아닌가?
             else:
                 hidden, caches[layer_idx] = affine_relu_forward(hidden, W, b)
+
+            if self.use_dropout:
+                hidden, dropout_cache = dropout_forward(hidden, self.dropout_param)
+                dropout_masks[layer_idx] = dropout_cache[1]
 
         # Last layer
         W = self.params[f"W{self.num_layers}"]
@@ -245,6 +252,10 @@ class FullyConnectedNet(object):
 
         # Hidden layers
         for layer_idx in reversed(range(1, self.num_layers)):
+            if self.use_dropout:
+                mask = dropout_masks[layer_idx]
+                dx = dropout_backward(dx, (self.dropout_param, mask))
+
             if self.normalization == "batchnorm":
                 dx, dW, db, dgamma, dbeta = affine_batchnorm_relu_backward(
                     dx, caches[layer_idx]
