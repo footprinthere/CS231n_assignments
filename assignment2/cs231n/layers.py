@@ -725,13 +725,9 @@ def conv_backward_naive(dout, cache):
 
                     for hh in range(HH):
                         h_image = h_out * stride + hh
-                        if h_image >= H_pad:
-                            break
 
                         for ww in range(WW):
                             w_image = w_out * stride + ww
-                            if w_image >= W_pad:
-                                break
 
                             for c in range(C):
                                 dx_pad[n, c, h_image, w_image] += (
