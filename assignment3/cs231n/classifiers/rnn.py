@@ -17,7 +17,7 @@ class CaptioningRNN:
 
     def __init__(
         self,
-        word_to_idx,
+        word_to_idx: dict[str, int],
         input_dim=512,
         wordvec_dim=128,
         hidden_dim=128,
@@ -53,26 +53,26 @@ class CaptioningRNN:
         self._end = word_to_idx.get("<END>", None)
 
         # Initialize word vectors
-        self.params["W_embed"] = np.random.randn(vocab_size, wordvec_dim)
+        self.params["W_embed"] = np.random.randn(vocab_size, wordvec_dim)  # (V, W)
         self.params["W_embed"] /= 100
 
         # Initialize CNN -> hidden state projection parameters
-        self.params["W_proj"] = np.random.randn(input_dim, hidden_dim)
+        self.params["W_proj"] = np.random.randn(input_dim, hidden_dim)  # (D, H)
         self.params["W_proj"] /= np.sqrt(input_dim)
-        self.params["b_proj"] = np.zeros(hidden_dim)
+        self.params["b_proj"] = np.zeros(hidden_dim)  # (H,)
 
         # Initialize parameters for the RNN
         dim_mul = {"lstm": 4, "rnn": 1}[cell_type]
-        self.params["Wx"] = np.random.randn(wordvec_dim, dim_mul * hidden_dim)
+        self.params["Wx"] = np.random.randn(wordvec_dim, dim_mul * hidden_dim)  # (W, H)
         self.params["Wx"] /= np.sqrt(wordvec_dim)
-        self.params["Wh"] = np.random.randn(hidden_dim, dim_mul * hidden_dim)
+        self.params["Wh"] = np.random.randn(hidden_dim, dim_mul * hidden_dim)  # (H, H)
         self.params["Wh"] /= np.sqrt(hidden_dim)
-        self.params["b"] = np.zeros(dim_mul * hidden_dim)
+        self.params["b"] = np.zeros(dim_mul * hidden_dim)  # (H,)
 
         # Initialize output to vocab weights
-        self.params["W_vocab"] = np.random.randn(hidden_dim, vocab_size)
+        self.params["W_vocab"] = np.random.randn(hidden_dim, vocab_size)  # (H, V)
         self.params["W_vocab"] /= np.sqrt(hidden_dim)
-        self.params["b_vocab"] = np.zeros(vocab_size)
+        self.params["b_vocab"] = np.zeros(vocab_size)  # (V,)
 
         # Cast parameters to correct dtype
         for k, v in self.params.items():
@@ -148,7 +148,43 @@ class CaptioningRNN:
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Forward pass
+        h0, affine_cache = affine_forward(features, W_proj, b_proj)  # (N, H)
+        embeddings, embedding_cache = word_embedding_forward(
+            captions_in, W_embed
+        )  # (N, T, W)
+
+        if self.cell_type == "rnn":
+            hiddens, rnn_cache = rnn_forward(embeddings, h0, Wx, Wh, b)  # (N, T, H)
+        else:
+            raise NotImplementedError
+
+        scores, score_cache = temporal_affine_forward(
+            hiddens, W_vocab, b_vocab
+        )  # (N, T, V)
+        loss, d_scores = temporal_softmax_loss(scores, captions_out, mask)
+
+        # Backward pass
+        d_hiddens, dW_vocab, db_vocab = temporal_affine_backward(d_scores, score_cache)
+
+        if self.cell_type == "rnn":
+            d_embeddings, dh0, dWx, dWh, db = rnn_backward(d_hiddens, rnn_cache)
+        else:
+            raise NotImplementedError
+
+        dW_embed = word_embedding_backward(d_embeddings, embedding_cache)
+        _, dW_proj, db_proj = affine_backward(dh0, affine_cache)
+
+        grads = {
+            "W_embed": dW_embed,
+            "W_proj": dW_proj,
+            "b_proj": db_proj,
+            "Wx": dWx,
+            "Wh": dWh,
+            "b": db,
+            "W_vocab": dW_vocab,
+            "b_vocab": db_vocab,
+        }
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -216,7 +252,23 @@ class CaptioningRNN:
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        prev_h, _ = affine_forward(features, W_proj, b_proj)  # (N, H)
+        prev_words = self._start * np.ones((N, 1), dtype=np.int32)
+
+        if self.cell_type == "rnn":
+            for t in range(max_length):
+                embedding, _ = word_embedding_forward(prev_words, W_embed)  # (N, 1, W)
+                embedding = np.squeeze(embedding, axis=1)  # (N, W)
+                h, _ = rnn_step_forward(embedding, prev_h, Wx, Wh, b)  # (N, H)
+                scores, _ = affine_forward(h, W_vocab, b_vocab)  # (N, V)
+                words = np.argmax(scores, axis=1)  # (N,)
+                captions[:, t] = words
+
+                prev_h = h
+                prev_words = words.reshape(N, 1)
+
+        else:
+            raise NotImplementedError
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
