@@ -148,16 +148,20 @@ class CaptioningRNN:
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
+        if self.cell_type == "rnn":
+            forward, backward = rnn_forward, rnn_backward
+        elif self.cell_type == "lstm":
+            forward, backward = lstm_forward, lstm_backward
+        else:
+            raise ValueError(f"cell type of {self.cell_type} is not supported")
+
         # Forward pass
         h0, affine_cache = affine_forward(features, W_proj, b_proj)  # (N, H)
         embeddings, embedding_cache = word_embedding_forward(
             captions_in, W_embed
         )  # (N, T, W)
 
-        if self.cell_type == "rnn":
-            hiddens, rnn_cache = rnn_forward(embeddings, h0, Wx, Wh, b)  # (N, T, H)
-        else:
-            raise NotImplementedError
+        hiddens, rnn_cache = forward(embeddings, h0, Wx, Wh, b)  # (N, T, H)
 
         scores, score_cache = temporal_affine_forward(
             hiddens, W_vocab, b_vocab
@@ -167,10 +171,7 @@ class CaptioningRNN:
         # Backward pass
         d_hiddens, dW_vocab, db_vocab = temporal_affine_backward(d_scores, score_cache)
 
-        if self.cell_type == "rnn":
-            d_embeddings, dh0, dWx, dWh, db = rnn_backward(d_hiddens, rnn_cache)
-        else:
-            raise NotImplementedError
+        d_embeddings, dh0, dWx, dWh, db = backward(d_hiddens, rnn_cache)
 
         dW_embed = word_embedding_backward(d_embeddings, embedding_cache)
         _, dW_proj, db_proj = affine_backward(dh0, affine_cache)
@@ -253,22 +254,29 @@ class CaptioningRNN:
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
         prev_h, _ = affine_forward(features, W_proj, b_proj)  # (N, H)
+        if self.cell_type == "lstm":
+            prev_c = np.zeros_like(prev_h)
         prev_words = self._start * np.ones((N, 1), dtype=np.int32)
 
-        if self.cell_type == "rnn":
-            for t in range(max_length):
-                embedding, _ = word_embedding_forward(prev_words, W_embed)  # (N, 1, W)
-                embedding = np.squeeze(embedding, axis=1)  # (N, W)
+        for t in range(max_length):
+            embedding, _ = word_embedding_forward(prev_words, W_embed)  # (N, 1, W)
+            embedding = np.squeeze(embedding, axis=1)  # (N, W)
+
+            if self.cell_type == "rnn":
                 h, _ = rnn_step_forward(embedding, prev_h, Wx, Wh, b)  # (N, H)
-                scores, _ = affine_forward(h, W_vocab, b_vocab)  # (N, V)
-                words = np.argmax(scores, axis=1)  # (N,)
-                captions[:, t] = words
+            elif self.cell_type == "lstm":
+                h, c, _ = lstm_step_forward(embedding, prev_h, prev_c, Wx, Wh, b)
+            else:
+                raise ValueError(f"cell type of {self.cell_type} is not supported")
 
-                prev_h = h
-                prev_words = words.reshape(N, 1)
+            scores, _ = affine_forward(h, W_vocab, b_vocab)  # (N, V)
+            words = np.argmax(scores, axis=1)  # (N,)
+            captions[:, t] = words
 
-        else:
-            raise NotImplementedError
+            prev_h = h
+            if self.cell_type == "lstm":
+                prev_c = c
+            prev_words = words.reshape(N, 1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
